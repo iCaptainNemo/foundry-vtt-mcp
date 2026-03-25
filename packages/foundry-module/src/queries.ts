@@ -131,6 +131,38 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.playPlaylist`] = this.handlePlayPlaylist.bind(this);
     CONFIG.queries[`${modulePrefix}.stopPlaylist`] = this.handleStopPlaylist.bind(this);
 
+    // Native roll queries (D&D 5e only)
+    CONFIG.queries[`${modulePrefix}.rollAbilityCheck`] = this.handleRollAbilityCheck.bind(this);
+    CONFIG.queries[`${modulePrefix}.rollSkillCheck`] = this.handleRollSkillCheck.bind(this);
+    CONFIG.queries[`${modulePrefix}.rollSavingThrow`] = this.handleRollSavingThrow.bind(this);
+    CONFIG.queries[`${modulePrefix}.rollAttack`] = this.handleRollAttack.bind(this);
+    CONFIG.queries[`${modulePrefix}.rollDamage`] = this.handleRollDamage.bind(this);
+
+    // Active effects queries
+    CONFIG.queries[`${modulePrefix}.getActorEffects`] = this.handleGetActorEffects.bind(this);
+    CONFIG.queries[`${modulePrefix}.addActorEffect`] = this.handleAddActorEffect.bind(this);
+    CONFIG.queries[`${modulePrefix}.removeActorEffect`] = this.handleRemoveActorEffect.bind(this);
+    CONFIG.queries[`${modulePrefix}.toggleActorEffect`] = this.handleToggleActorEffect.bind(this);
+
+    // Combatant management queries
+    CONFIG.queries[`${modulePrefix}.addCombatant`] = this.handleAddCombatant.bind(this);
+    CONFIG.queries[`${modulePrefix}.removeCombatant`] = this.handleRemoveCombatant.bind(this);
+    CONFIG.queries[`${modulePrefix}.setCombatantDefeated`] = this.handleSetCombatantDefeated.bind(this);
+    CONFIG.queries[`${modulePrefix}.updateCombatant`] = this.handleUpdateCombatant.bind(this);
+
+    // Item management queries
+    CONFIG.queries[`${modulePrefix}.deleteActorItem`] = this.handleDeleteActorItem.bind(this);
+    CONFIG.queries[`${modulePrefix}.updateActorItem`] = this.handleUpdateActorItem.bind(this);
+
+    // Actor deletion query
+    CONFIG.queries[`${modulePrefix}.deleteActor`] = this.handleDeleteActor.bind(this);
+
+    // Journal page queries
+    CONFIG.queries[`${modulePrefix}.createJournalPage`] = this.handleCreateJournalPage.bind(this);
+    CONFIG.queries[`${modulePrefix}.updateJournalPage`] = this.handleUpdateJournalPage.bind(this);
+    CONFIG.queries[`${modulePrefix}.deleteJournalPage`] = this.handleDeleteJournalPage.bind(this);
+    CONFIG.queries[`${modulePrefix}.deleteJournal`] = this.handleDeleteJournal.bind(this);
+
   }
 
   /**
@@ -1800,6 +1832,392 @@ export class QueryHandlers {
       return { success: true, playlistId: playlist.id };
     } catch (error) {
       throw new Error(`Failed to stop playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Helper: find an actor by actorId or actorName
+   */
+  private findActorByIdOrName(data: { actorId?: string; actorName?: string }): any {
+    const actor = data.actorId
+      ? game.actors?.get(data.actorId)
+      : game.actors?.getName(data.actorName ?? '');
+    if (!actor) throw new Error(`Actor not found: ${data.actorId ?? data.actorName}`);
+    return actor;
+  }
+
+  /**
+   * Roll an ability check using native D&D 5e system
+   */
+  private async handleRollAbilityCheck(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      if (game.system.id !== 'dnd5e') return { success: false, error: 'Native rolls only supported for D&D 5e' };
+      const actor = this.findActorByIdOrName(data);
+      const roll = await actor.rollAbilityTest(data.ability, { fastForward: true });
+      return { success: true, total: roll.total, formula: roll.formula };
+    } catch (error) {
+      throw new Error(`Failed to roll ability check: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Roll a skill check using native D&D 5e system
+   */
+  private async handleRollSkillCheck(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      if (game.system.id !== 'dnd5e') return { success: false, error: 'Native rolls only supported for D&D 5e' };
+      const actor = this.findActorByIdOrName(data);
+      const skillKey = Object.entries(actor.system.skills).find(([k, v]: any) =>
+        k === data.skill || (v.label?.toLowerCase().includes(data.skill.toLowerCase()))
+      )?.[0];
+      if (!skillKey) throw new Error(`Skill not found: ${data.skill}`);
+      const roll = await actor.rollSkill(skillKey, { fastForward: true });
+      return { success: true, total: roll.total, formula: roll.formula };
+    } catch (error) {
+      throw new Error(`Failed to roll skill check: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Roll a saving throw using native D&D 5e system
+   */
+  private async handleRollSavingThrow(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      if (game.system.id !== 'dnd5e') return { success: false, error: 'Native rolls only supported for D&D 5e' };
+      const actor = this.findActorByIdOrName(data);
+      const roll = await actor.rollAbilitySave(data.ability, { fastForward: true });
+      return { success: true, total: roll.total, formula: roll.formula };
+    } catch (error) {
+      throw new Error(`Failed to roll saving throw: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Roll an attack using native D&D 5e system
+   */
+  private async handleRollAttack(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      if (game.system.id !== 'dnd5e') return { success: false, error: 'Native rolls only supported for D&D 5e' };
+      const actor = this.findActorByIdOrName(data);
+      const item = actor.items.getName(data.itemName);
+      if (!item) throw new Error(`Item not found: ${data.itemName}`);
+      const roll = await item.rollAttack({ fastForward: true });
+      return { success: true, total: roll?.total, formula: roll?.formula };
+    } catch (error) {
+      throw new Error(`Failed to roll attack: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Roll damage using native D&D 5e system
+   */
+  private async handleRollDamage(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      if (game.system.id !== 'dnd5e') return { success: false, error: 'Native rolls only supported for D&D 5e' };
+      const actor = this.findActorByIdOrName(data);
+      const item = actor.items.getName(data.itemName);
+      if (!item) throw new Error(`Item not found: ${data.itemName}`);
+      const roll = await item.rollDamage({ critical: data.critical ?? false, fastForward: true });
+      return { success: true, total: roll?.total, formula: roll?.formula };
+    } catch (error) {
+      throw new Error(`Failed to roll damage: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get all active effects on an actor
+   */
+  private async handleGetActorEffects(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const actor = this.findActorByIdOrName(data);
+      return {
+        effects: actor.effects.map((e: any) => ({
+          id: e.id,
+          name: e.name,
+          disabled: e.disabled,
+          duration: e.duration,
+          changes: e.changes,
+          icon: e.icon,
+        })),
+      };
+    } catch (error) {
+      throw new Error(`Failed to get actor effects: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Add an active effect to an actor
+   */
+  private async handleAddActorEffect(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const actor = this.findActorByIdOrName(data);
+      const result = await actor.createEmbeddedDocuments('ActiveEffect', [{
+        name: data.label,
+        icon: data.icon ?? 'icons/svg/aura.svg',
+        changes: data.changes ?? [],
+        disabled: data.disabled ?? false,
+        duration: data.duration ?? {},
+      }]);
+      return { success: true, effectId: result[0].id };
+    } catch (error) {
+      throw new Error(`Failed to add actor effect: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Remove an active effect from an actor
+   */
+  private async handleRemoveActorEffect(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const actor = this.findActorByIdOrName(data);
+      await actor.deleteEmbeddedDocuments('ActiveEffect', [data.effectId]);
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to remove actor effect: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Toggle an active effect on an actor
+   */
+  private async handleToggleActorEffect(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const actor = this.findActorByIdOrName(data);
+      const effect = actor.effects.get(data.effectId);
+      if (!effect) throw new Error(`Effect not found: ${data.effectId}`);
+      await effect.update({ disabled: !effect.disabled });
+      return { success: true, disabled: !effect.disabled };
+    } catch (error) {
+      throw new Error(`Failed to toggle actor effect: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Add a token to the current combat
+   */
+  private async handleAddCombatant(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const combat = game.combat;
+      if (!combat) throw new Error('No active combat');
+      let tokenId = data.tokenId;
+      if (!tokenId && data.actorId) {
+        const scene = (game.scenes as any)?.active;
+        const token = scene?.tokens.find((t: any) => t.actorId === data.actorId);
+        if (!token) throw new Error('Token not found for actor on active scene');
+        tokenId = token.id;
+      }
+      const result = await combat.createEmbeddedDocuments('Combatant', [{ tokenId, hidden: false }]);
+      return { success: true, combatantId: result[0].id };
+    } catch (error) {
+      throw new Error(`Failed to add combatant: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Remove a combatant from the current combat
+   */
+  private async handleRemoveCombatant(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const combat = game.combat;
+      if (!combat) throw new Error('No active combat');
+      await combat.deleteEmbeddedDocuments('Combatant', [data.combatantId]);
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to remove combatant: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Set a combatant as defeated or restore them
+   */
+  private async handleSetCombatantDefeated(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const combat = game.combat;
+      if (!combat) throw new Error('No active combat');
+      await combat.updateEmbeddedDocuments('Combatant', [{ _id: data.combatantId, defeated: data.defeated }]);
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to set combatant defeated: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Update a combatant's initiative or hidden status
+   */
+  private async handleUpdateCombatant(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const combat = game.combat;
+      if (!combat) throw new Error('No active combat');
+      const updates: any = { _id: data.combatantId };
+      if (data.initiative !== undefined) updates.initiative = data.initiative;
+      if (data.hidden !== undefined) updates.hidden = data.hidden;
+      await combat.updateEmbeddedDocuments('Combatant', [updates]);
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to update combatant: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Delete an item from an actor
+   */
+  private async handleDeleteActorItem(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const actor = game.actors?.get(data.actorId);
+      if (!actor) throw new Error(`Actor not found: ${data.actorId}`);
+      await actor.deleteEmbeddedDocuments('Item', [data.itemId]);
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to delete actor item: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Update an item on an actor
+   */
+  private async handleUpdateActorItem(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const actor = game.actors?.get(data.actorId);
+      if (!actor) throw new Error(`Actor not found: ${data.actorId}`);
+      const item = actor.items.get(data.itemId);
+      if (!item) throw new Error(`Item not found: ${data.itemId}`);
+      await actor.updateEmbeddedDocuments('Item', [{ _id: data.itemId, ...data.updateData }]);
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to update actor item: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Delete an actor from the world
+   */
+  private async handleDeleteActor(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const actor = game.actors?.get(data.actorId);
+      if (!actor) throw new Error(`Actor not found: ${data.actorId}`);
+      const name = actor.name;
+      await actor.delete();
+      return { success: true, name };
+    } catch (error) {
+      throw new Error(`Failed to delete actor: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Create a new page in a journal entry
+   */
+  private async handleCreateJournalPage(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const journal = game.journal?.get(data.journalId);
+      if (!journal) throw new Error(`Journal not found: ${data.journalId}`);
+      const pageData: any = { name: data.name, type: data.type ?? 'text' };
+      if ((data.type ?? 'text') === 'text') pageData.text = { content: data.content ?? '', format: 1 };
+      else if (data.content) pageData.src = data.content;
+      const result = await journal.createEmbeddedDocuments('JournalEntryPage', [pageData]);
+      return { success: true, pageId: result[0].id };
+    } catch (error) {
+      throw new Error(`Failed to create journal page: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Update an existing journal page
+   */
+  private async handleUpdateJournalPage(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const journal = game.journal?.get(data.journalId);
+      if (!journal) throw new Error(`Journal not found: ${data.journalId}`);
+      const updates: any = { _id: data.pageId };
+      if (data.name) updates.name = data.name;
+      if (data.content !== undefined) updates['text.content'] = data.content;
+      await journal.updateEmbeddedDocuments('JournalEntryPage', [updates]);
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to update journal page: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Delete a journal page
+   */
+  private async handleDeleteJournalPage(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const journal = game.journal?.get(data.journalId);
+      if (!journal) throw new Error(`Journal not found: ${data.journalId}`);
+      await journal.deleteEmbeddedDocuments('JournalEntryPage', [data.pageId]);
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to delete journal page: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Delete an entire journal entry
+   */
+  private async handleDeleteJournal(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      const journal = game.journal?.get(data.journalId);
+      if (!journal) throw new Error(`Journal not found: ${data.journalId}`);
+      const name = journal.name;
+      await journal.delete();
+      return { success: true, name };
+    } catch (error) {
+      throw new Error(`Failed to delete journal: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

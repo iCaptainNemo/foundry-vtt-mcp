@@ -38,6 +38,12 @@ import { ChatTools } from './tools/chat.js';
 
 import { CombatTools } from './tools/combat.js';
 
+import { NativeRollTools } from './tools/rolls.js';
+
+import { ActiveEffectsTools } from './tools/effects.js';
+
+import { JournalTools } from './tools/journal.js';
+
 import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
 
 const CONTROL_HOST = '127.0.0.1';
@@ -1086,6 +1092,12 @@ async function startBackend(): Promise<void> {
 
   const combatTools = new CombatTools({ foundryClient, logger });
 
+  const nativeRollTools = new NativeRollTools({ foundryClient, logger });
+
+  const activeEffectsTools = new ActiveEffectsTools({ foundryClient, logger });
+
+  const journalTools = new JournalTools({ foundryClient, logger });
+
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
   let mapGenerationComfyUIClient: any = null;
@@ -1322,6 +1334,12 @@ async function startBackend(): Promise<void> {
     ...chatTools.getToolDefinitions(),
 
     ...combatTools.getToolDefinitions(),
+
+    ...nativeRollTools.getToolDefinitions(),
+
+    ...activeEffectsTools.getToolDefinitions(),
+
+    ...journalTools.getToolDefinitions(),
 
   ];
 
@@ -1748,6 +1766,136 @@ async function startBackend(): Promise<void> {
                 case 'stop-playlist':
 
                   result = await sceneTools.handleStopPlaylist(args);
+
+                  break;
+
+                // Native roll tools
+
+                case 'roll-ability-check':
+
+                  result = await nativeRollTools.handleRollAbilityCheck(args);
+
+                  break;
+
+                case 'roll-skill-check':
+
+                  result = await nativeRollTools.handleRollSkillCheck(args);
+
+                  break;
+
+                case 'roll-saving-throw':
+
+                  result = await nativeRollTools.handleRollSavingThrow(args);
+
+                  break;
+
+                case 'roll-attack':
+
+                  result = await nativeRollTools.handleRollAttack(args);
+
+                  break;
+
+                case 'roll-damage':
+
+                  result = await nativeRollTools.handleRollDamage(args);
+
+                  break;
+
+                // Active effects tools
+
+                case 'get-actor-effects':
+
+                  result = await activeEffectsTools.handleGetActorEffects(args);
+
+                  break;
+
+                case 'add-actor-effect':
+
+                  result = await activeEffectsTools.handleAddActorEffect(args);
+
+                  break;
+
+                case 'remove-actor-effect':
+
+                  result = await activeEffectsTools.handleRemoveActorEffect(args);
+
+                  break;
+
+                case 'toggle-actor-effect':
+
+                  result = await activeEffectsTools.handleToggleActorEffect(args);
+
+                  break;
+
+                // Journal tools
+
+                case 'create-journal-page':
+
+                  result = await journalTools.handleCreateJournalPage(args);
+
+                  break;
+
+                case 'update-journal-page':
+
+                  result = await journalTools.handleUpdateJournalPage(args);
+
+                  break;
+
+                case 'delete-journal-page':
+
+                  result = await journalTools.handleDeleteJournalPage(args);
+
+                  break;
+
+                case 'delete-journal':
+
+                  result = await journalTools.handleDeleteJournal(args);
+
+                  break;
+
+                // Extended combat tools
+
+                case 'add-combatant':
+
+                  result = await combatTools.handleAddCombatant(args);
+
+                  break;
+
+                case 'remove-combatant':
+
+                  result = await combatTools.handleRemoveCombatant(args);
+
+                  break;
+
+                case 'set-combatant-defeated':
+
+                  result = await combatTools.handleSetCombatantDefeated(args);
+
+                  break;
+
+                case 'update-combatant':
+
+                  result = await combatTools.handleUpdateCombatant(args);
+
+                  break;
+
+                // Extended character tools
+
+                case 'delete-actor':
+
+                  result = await characterTools.handleDeleteActor(args);
+
+                  break;
+
+                case 'delete-actor-item':
+
+                  result = await characterTools.handleDeleteActorItem(args);
+
+                  break;
+
+                case 'update-actor-item':
+
+                  result = await characterTools.handleUpdateActorItem(args);
 
                   break;
 

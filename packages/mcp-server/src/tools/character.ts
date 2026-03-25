@@ -203,6 +203,60 @@ export class CharacterTools {
           required: ['characterIdentifier'],
         },
       },
+      {
+        name: 'delete-actor',
+        description: 'Permanently delete an actor from the world. This cannot be undone.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            actorId: {
+              type: 'string',
+              description: 'Actor ID to delete',
+            },
+          },
+          required: ['actorId'],
+        },
+      },
+      {
+        name: 'delete-actor-item',
+        description: 'Delete a specific item from an actor\'s inventory.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            actorId: {
+              type: 'string',
+              description: 'Actor ID to remove the item from',
+            },
+            itemId: {
+              type: 'string',
+              description: 'Item ID to delete',
+            },
+          },
+          required: ['actorId', 'itemId'],
+        },
+      },
+      {
+        name: 'update-actor-item',
+        description: 'Update properties of a specific item on an actor. Use updateData to specify the fields to change.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            actorId: {
+              type: 'string',
+              description: 'Actor ID that owns the item',
+            },
+            itemId: {
+              type: 'string',
+              description: 'Item ID to update',
+            },
+            updateData: {
+              type: 'object',
+              description: 'Key-value pairs of fields to update on the item',
+            },
+          },
+          required: ['actorId', 'itemId', 'updateData'],
+        },
+      },
     ];
   }
 
@@ -822,5 +876,80 @@ export class CharacterTools {
       return text;
     }
     return text.substring(0, maxLength - 3) + '...';
+  }
+
+  async handleDeleteActor(args: any): Promise<any> {
+    const schema = z.object({
+      actorId: z.string(),
+    });
+
+    const params = schema.parse(args);
+
+    this.logger.info('Deleting actor', { actorId: params.actorId });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.deleteActor', {
+        actorId: params.actorId,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to delete actor', error);
+      throw new Error(
+        `Failed to delete actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async handleDeleteActorItem(args: any): Promise<any> {
+    const schema = z.object({
+      actorId: z.string(),
+      itemId: z.string(),
+    });
+
+    const params = schema.parse(args);
+
+    this.logger.info('Deleting actor item', params);
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.deleteActorItem', {
+        actorId: params.actorId,
+        itemId: params.itemId,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to delete actor item', error);
+      throw new Error(
+        `Failed to delete actor item: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async handleUpdateActorItem(args: any): Promise<any> {
+    const schema = z.object({
+      actorId: z.string(),
+      itemId: z.string(),
+      updateData: z.record(z.unknown()),
+    });
+
+    const params = schema.parse(args);
+
+    this.logger.info('Updating actor item', { actorId: params.actorId, itemId: params.itemId });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.updateActorItem', {
+        actorId: params.actorId,
+        itemId: params.itemId,
+        updateData: params.updateData,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to update actor item', error);
+      throw new Error(
+        `Failed to update actor item: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   }
 }

@@ -78,7 +78,6 @@ config.local.json
 
 # WIP / local-only tools
 packages/mcp-server/src/tools/chat.ts
-packages/mcp-server/src/tools/combat.ts
 .claude/foundry-mcp-server-*.zip
 foundry-vtt-mcp.zip
 .foundry-deploy-config
