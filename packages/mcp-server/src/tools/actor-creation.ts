@@ -86,6 +86,33 @@ export class ActorCreationTools {
         },
       },
       {
+        name: 'add-tokens-to-scene',
+        description: 'Add existing actors to the current scene as tokens. Use after creating actors with create-actor-from-compendium, or to place existing world actors onto the map.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            actorIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'IDs of actors to place as tokens on the current scene',
+              minItems: 1,
+            },
+            placement: {
+              type: 'string',
+              enum: ['random', 'grid', 'center'],
+              description: 'Token placement strategy (default: random)',
+              default: 'random',
+            },
+            hidden: {
+              type: 'boolean',
+              description: 'Whether to place tokens as hidden (default: false)',
+              default: false,
+            },
+          },
+          required: ['actorIds'],
+        },
+      },
+      {
         name: 'get-compendium-entry-full',
         description: 'Retrieve complete stat block data including items, spells, and abilities for actor creation',
         inputSchema: {
@@ -169,6 +196,35 @@ export class ActorCreationTools {
 
     } catch (error) {
       this.errorHandler.handleToolError(error, 'create-actor-from-compendium', 'actor creation');
+    }
+  }
+
+  /**
+   * Handle adding actors to scene as tokens
+   */
+  async handleAddTokensToScene(args: any): Promise<any> {
+    const schema = z.object({
+      actorIds: z.array(z.string().min(1)).min(1, 'At least one actor ID is required'),
+      placement: z.enum(['random', 'grid', 'center']).default('random'),
+      hidden: z.boolean().default(false),
+    });
+
+    const { actorIds, placement, hidden } = schema.parse(args);
+
+    this.logger.info('Adding tokens to scene', { actorIds, placement, hidden });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.addActorsToScene', {
+        actorIds,
+        placement,
+        hidden,
+      });
+
+      this.logger.info('Tokens added to scene', { tokensPlaced: result.tokensPlaced });
+
+      return result;
+    } catch (error) {
+      this.errorHandler.handleToolError(error, 'add-tokens-to-scene', 'adding tokens to scene');
     }
   }
 

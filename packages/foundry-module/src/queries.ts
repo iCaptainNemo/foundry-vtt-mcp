@@ -105,6 +105,32 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.toggle-token-condition`] = this.handleToggleTokenCondition.bind(this);
     CONFIG.queries[`${modulePrefix}.get-available-conditions`] = this.handleGetAvailableConditions.bind(this);
 
+    // Chat queries
+    CONFIG.queries[`${modulePrefix}.getChatMessages`] = this.handleGetChatMessages.bind(this);
+    CONFIG.queries[`${modulePrefix}.sendChatMessage`] = this.handleSendChatMessage.bind(this);
+
+    // Combat queries
+    CONFIG.queries[`${modulePrefix}.startCombat`] = this.handleStartCombat.bind(this);
+    CONFIG.queries[`${modulePrefix}.endCombat`] = this.handleEndCombat.bind(this);
+    CONFIG.queries[`${modulePrefix}.getCombatState`] = this.handleGetCombatState.bind(this);
+    CONFIG.queries[`${modulePrefix}.nextTurn`] = this.handleNextTurn.bind(this);
+    CONFIG.queries[`${modulePrefix}.previousTurn`] = this.handlePreviousTurn.bind(this);
+    CONFIG.queries[`${modulePrefix}.rollInitiative`] = this.handleRollInitiative.bind(this);
+    CONFIG.queries[`${modulePrefix}.setInitiative`] = this.handleSetInitiative.bind(this);
+
+    // Dice queries
+    CONFIG.queries[`${modulePrefix}.rollDice`] = this.handleRollDice.bind(this);
+
+    // Actor update queries
+    CONFIG.queries[`${modulePrefix}.updateActor`] = this.handleUpdateActor.bind(this);
+
+    // Inventory queries
+    CONFIG.queries[`${modulePrefix}.giveItemToActor`] = this.handleGiveItemToActor.bind(this);
+
+    // Playlist queries
+    CONFIG.queries[`${modulePrefix}.playPlaylist`] = this.handlePlayPlaylist.bind(this);
+    CONFIG.queries[`${modulePrefix}.stopPlaylist`] = this.handleStopPlaylist.bind(this);
+
   }
 
   /**
@@ -1325,6 +1351,455 @@ export class QueryHandlers {
       });
     } catch (error) {
       throw new Error(`Failed to search character items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // ===== CHAT HANDLERS =====
+
+  /**
+   * Get recent chat messages, optionally filtered by timestamp or last seen ID
+   */
+  private async handleGetChatMessages(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const limit: number = data?.limit ?? 20;
+      const sinceTimestamp: number | null = data?.since ? new Date(data.since).getTime() : null;
+      const sinceId: string | null = data?.sinceId ?? null;
+
+      let messages = (game.messages as any).contents as any[];
+
+      // Filter by sinceId: only messages after this ID
+      if (sinceId) {
+        const idx = messages.findIndex((m: any) => m.id === sinceId);
+        if (idx !== -1) {
+          messages = messages.slice(idx + 1);
+        }
+      } else if (sinceTimestamp !== null) {
+        messages = messages.filter((m: any) => m.timestamp > sinceTimestamp);
+      }
+
+      // Take the most recent N messages
+      messages = messages.slice(-limit);
+
+      const result = messages.map((msg: any) => ({
+        id: msg.id,
+        author: msg.author?.name ?? 'Unknown',
+        content: msg.content,
+        timestamp: new Date(msg.timestamp).toISOString(),
+        speaker: msg.speaker?.alias ?? null,
+        type: msg.type,
+        isRoll: msg.isRoll ?? false,
+      }));
+
+      return { success: true, messages: result, total: result.length };
+    } catch (error) {
+      throw new Error(`Failed to get chat messages: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Send a chat message as GM (narration, announcements, descriptions)
+   */
+  private async handleSendChatMessage(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data?.content) {
+        throw new Error('content is required');
+      }
+
+      const messageData: any = {
+        content: data.content,
+        speaker: { alias: data.speakerAlias ?? 'Dungeon Master' },
+      };
+
+      // Optional: whisper to specific users by name
+      if (data.whisperTo && Array.isArray(data.whisperTo) && data.whisperTo.length > 0) {
+        messageData.whisper = (game.users as any).contents
+          .filter((u: any) => data.whisperTo.includes(u.name))
+          .map((u: any) => u.id);
+      }
+
+      const message = await ChatMessage.create(messageData);
+
+      return { success: true, messageId: message?.id ?? null };
+    } catch (error) {
+      throw new Error(`Failed to send chat message: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Start combat on the current scene
+   */
+  private async handleStartCombat(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const combat = await Combat.create({ scene: (game.scenes as any)?.active?.id, active: true });
+      if (!combat) throw new Error('Failed to create combat');
+
+      if (data.tokenIds?.length) {
+        const combatants = data.tokenIds.map((tokenId: string) => ({ tokenId, hidden: false }));
+        await combat.createEmbeddedDocuments('Combatant', combatants);
+      } else if (data.addAll) {
+        const scene = (game.scenes as any)?.active;
+        const tokenIds = scene?.tokens?.map((t: any) => t.id) ?? [];
+        const combatants = tokenIds.map((tokenId: string) => ({ tokenId, hidden: false }));
+        if (combatants.length) await combat.createEmbeddedDocuments('Combatant', combatants);
+      }
+
+      return { success: true, combatId: combat.id };
+    } catch (error) {
+      throw new Error(`Failed to start combat: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * End/delete the current combat
+   */
+  private async handleEndCombat(_data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const combat = game.combat;
+      if (!combat) throw new Error('No active combat');
+      await combat.delete();
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to end combat: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get current combat state
+   */
+  private async handleGetCombatState(_data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const combat = game.combat;
+      if (!combat) return { success: true, combat: null };
+
+      const combatants = combat.combatants.map((c: any) => ({
+        id: c.id,
+        tokenId: c.tokenId,
+        name: c.name,
+        initiative: c.initiative,
+        isActive: combat.combatant?.id === c.id,
+        defeated: c.defeated,
+        hidden: c.hidden,
+        hp: c.actor?.system?.attributes?.hp ? {
+          value: c.actor.system.attributes.hp.value,
+          max: c.actor.system.attributes.hp.max,
+        } : null,
+      }));
+
+      return {
+        success: true,
+        combat: {
+          id: combat.id,
+          round: combat.round,
+          turn: combat.turn,
+          combatants,
+        },
+      };
+    } catch (error) {
+      throw new Error(`Failed to get combat state: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Advance to next combatant's turn
+   */
+  private async handleNextTurn(_data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const combat = game.combat;
+      if (!combat) throw new Error('No active combat');
+      await combat.nextTurn();
+      return { success: true, round: game.combat?.round, turn: game.combat?.turn };
+    } catch (error) {
+      throw new Error(`Failed to advance turn: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Go to previous combatant's turn
+   */
+  private async handlePreviousTurn(_data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const combat = game.combat;
+      if (!combat) throw new Error('No active combat');
+      await combat.previousTurn();
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to go to previous turn: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Roll initiative for combatants
+   */
+  private async handleRollInitiative(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const combat = game.combat;
+      if (!combat) throw new Error('No active combat');
+
+      if (data.rollAll) {
+        await combat.rollAll();
+      } else if (data.rollNPCs) {
+        await combat.rollNPC();
+      } else if (data.tokenIds?.length) {
+        const ids = combat.combatants
+          .filter((c: any) => data.tokenIds.includes(c.tokenId))
+          .map((c: any) => c.id);
+        await combat.rollInitiative(ids);
+      }
+
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to roll initiative: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Set initiative value for a specific combatant
+   */
+  private async handleSetInitiative(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const combat = game.combat;
+      if (!combat) throw new Error('No active combat');
+
+      const combatant = data.combatantId
+        ? combat.combatants.get(data.combatantId)
+        : combat.combatants.find((c: any) => c.tokenId === data.tokenId);
+      if (!combatant) throw new Error('Combatant not found');
+
+      await combat.setInitiative(combatant.id, data.initiative);
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to set initiative: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Roll dice as GM and post result to chat
+   */
+  private async handleRollDice(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data?.formula) throw new Error('formula is required');
+
+      const roll = await new Roll(data.formula).evaluate();
+      const messageData: any = {
+        rolls: [roll],
+        content: await roll.render(),
+        flavor: data.flavor ?? '',
+        speaker: ChatMessage.getSpeaker({ alias: 'Dungeon Master' }),
+      };
+
+      if (data.whisperGM) {
+        messageData.whisper = ChatMessage.getWhisperRecipients('GM').map((u: any) => u.id);
+      }
+
+      const message = await ChatMessage.create(messageData);
+      return { success: true, total: roll.total, formula: roll.formula, messageId: message?.id };
+    } catch (error) {
+      throw new Error(`Failed to roll dice: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Update an actor's HP or other attributes
+   */
+  private async handleUpdateActor(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const actor: any = data.actorId
+        ? game.actors?.get(data.actorId)
+        : game.actors?.getName(data.actorName);
+      if (!actor) throw new Error('Actor not found');
+
+      const updates: any = {};
+      const current = actor.system?.attributes?.hp;
+
+      if (data.delta !== undefined && current) {
+        updates['system.attributes.hp.value'] = Math.max(0, Math.min(current.max, current.value + data.delta));
+      } else if (data.hp !== undefined) {
+        updates['system.attributes.hp.value'] = data.hp;
+      }
+
+      if (data.tempHp !== undefined) updates['system.attributes.hp.temp'] = data.tempHp;
+      if (data.maxHpOverride !== undefined) updates['system.attributes.hp.override'] = data.maxHpOverride;
+
+      if (Object.keys(updates).length === 0) throw new Error('No valid update fields provided');
+
+      await actor.update(updates);
+      const updated = actor.system?.attributes?.hp;
+      return {
+        success: true,
+        hp: updated ? { value: updated.value, max: updated.max, temp: updated.temp } : null,
+      };
+    } catch (error) {
+      throw new Error(`Failed to update actor: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Give an item from a compendium to an actor
+   */
+  private async handleGiveItemToActor(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const actor = data.actorId
+        ? game.actors?.get(data.actorId)
+        : game.actors?.getName(data.actorName);
+      if (!actor) throw new Error('Actor not found');
+      if (!data.itemName) throw new Error('itemName is required');
+
+      let itemData: any = null;
+      for (const pack of game.packs) {
+        if (pack.documentName !== 'Item') continue;
+        const index = await pack.getIndex();
+        const entry = index.find((e: any) => e.name.toLowerCase() === data.itemName.toLowerCase());
+        if (entry) {
+          const doc = await pack.getDocument(entry._id);
+          itemData = doc?.toObject();
+          break;
+        }
+      }
+
+      if (!itemData) throw new Error(`Item "${data.itemName}" not found in compendiums`);
+      if (data.quantity && data.quantity > 1) itemData.system.quantity = data.quantity;
+
+      const created = await actor.createEmbeddedDocuments('Item', [itemData]);
+      return { success: true, itemId: created[0]?.id, itemName: created[0]?.name };
+    } catch (error) {
+      throw new Error(`Failed to give item to actor: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Play a playlist
+   */
+  private async handlePlayPlaylist(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const playlist = data.id
+        ? game.playlists?.get(data.id)
+        : game.playlists?.getName(data.name);
+      if (!playlist) throw new Error(`Playlist "${data.name ?? data.id}" not found`);
+
+      await playlist.playAll();
+      return { success: true, playlistId: playlist.id, name: playlist.name };
+    } catch (error) {
+      throw new Error(`Failed to play playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Stop a playlist or all playlists
+   */
+  private async handleStopPlaylist(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (data.stopAll) {
+        for (const pl of game.playlists ?? []) await pl.stopAll();
+        return { success: true, stopped: 'all' };
+      }
+
+      const playlist = data.id
+        ? game.playlists?.get(data.id)
+        : game.playlists?.getName(data.name);
+      if (!playlist) throw new Error(`Playlist "${data.name ?? data.id}" not found`);
+
+      await playlist.stopAll();
+      return { success: true, playlistId: playlist.id };
+    } catch (error) {
+      throw new Error(`Failed to stop playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

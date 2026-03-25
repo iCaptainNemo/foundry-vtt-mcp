@@ -95,12 +95,15 @@ export class SocketBridge {
   private async connectWebSocket(): Promise<void> {
     this.activeConnectionType = 'websocket';
 
-    // WebSocket for HTTP localhost connections only
-    const protocol = 'ws';
+    // Use wss:// on HTTPS pages (proxied through the game server's nginx)
+    const isHttps = window.location.protocol === 'https:';
+    const protocol = isHttps ? 'wss' : 'ws';
     const host = this.config.serverHost;
-    this.log(`Using WebSocket (${protocol}://${host}:${this.config.serverPort})`);
+    // On HTTPS, omit port — nginx handles wss:// on 443 and proxies to the MCP server
+    const portPart = isHttps ? '' : `:${this.config.serverPort}`;
+    this.log(`Using WebSocket (${protocol}://${host}${portPart}${this.config.namespace})`);
 
-    const wsUrl = `${protocol}://${host}:${this.config.serverPort}${this.config.namespace}`;
+    const wsUrl = `${protocol}://${host}${portPart}${this.config.namespace}`;
 
     return new Promise((resolve, reject) => {
       const connectTimeout = setTimeout(() => {

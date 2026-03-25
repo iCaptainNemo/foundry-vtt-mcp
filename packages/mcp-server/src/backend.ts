@@ -34,6 +34,10 @@ import { MapGenerationTools } from './tools/map-generation.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
+import { ChatTools } from './tools/chat.js';
+
+import { CombatTools } from './tools/combat.js';
+
 import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
 
 const CONTROL_HOST = '127.0.0.1';
@@ -1078,6 +1082,10 @@ async function startBackend(): Promise<void> {
 
   const tokenManipulationTools = new TokenManipulationTools({ foundryClient, logger });
 
+  const chatTools = new ChatTools({ foundryClient, logger });
+
+  const combatTools = new CombatTools({ foundryClient, logger });
+
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
   let mapGenerationComfyUIClient: any = null;
@@ -1310,6 +1318,10 @@ async function startBackend(): Promise<void> {
     ...tokenManipulationTools.getToolDefinitions(),
 
     ...mapGenerationTools.getToolDefinitions(),
+
+    ...chatTools.getToolDefinitions(),
+
+    ...combatTools.getToolDefinitions(),
 
   ];
 
@@ -1632,6 +1644,110 @@ async function startBackend(): Promise<void> {
                 case 'switch-scene':
 
                   result = await mapGenerationTools.switchScene(args);
+
+                  break;
+
+                // Chat tools
+
+                case 'get-chat-messages':
+
+                  result = await chatTools.handleGetChatMessages(args);
+
+                  break;
+
+                case 'send-chat-message':
+
+                  result = await chatTools.handleSendChatMessage(args);
+
+                  break;
+
+                // Combat tools
+
+                case 'start-combat':
+
+                  result = await combatTools.handleStartCombat(args);
+
+                  break;
+
+                case 'end-combat':
+
+                  result = await combatTools.handleEndCombat(args);
+
+                  break;
+
+                case 'get-combat-state':
+
+                  result = await combatTools.handleGetCombatState(args);
+
+                  break;
+
+                case 'next-turn':
+
+                  result = await combatTools.handleNextTurn(args);
+
+                  break;
+
+                case 'previous-turn':
+
+                  result = await combatTools.handlePreviousTurn(args);
+
+                  break;
+
+                case 'roll-initiative':
+
+                  result = await combatTools.handleRollInitiative(args);
+
+                  break;
+
+                case 'set-initiative':
+
+                  result = await combatTools.handleSetInitiative(args);
+
+                  break;
+
+                // New dice tools
+
+                case 'roll-dice':
+
+                  result = await diceRollTools.handleRollDice(args);
+
+                  break;
+
+                // Actor update
+
+                case 'update-actor':
+
+                  result = await characterTools.handleUpdateActor(args);
+
+                  break;
+
+                // Give item
+
+                case 'give-item-to-actor':
+
+                  result = await characterTools.handleGiveItemToActor(args);
+
+                  break;
+
+                // Add tokens to scene
+
+                case 'add-tokens-to-scene':
+
+                  result = await actorCreationTools.handleAddTokensToScene(args);
+
+                  break;
+
+                // Playlist
+
+                case 'play-playlist':
+
+                  result = await sceneTools.handlePlayPlaylist(args);
+
+                  break;
+
+                case 'stop-playlist':
+
+                  result = await sceneTools.handleStopPlaylist(args);
 
                   break;
 

@@ -115,6 +115,65 @@ export class CharacterTools {
         },
       },
       {
+        name: 'update-actor',
+        description: 'Update an actor\'s HP, temp HP, or max HP override. Use delta to apply a relative change (e.g. -5 for damage, +3 for healing), or hp to set an absolute value.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            actorId: {
+              type: 'string',
+              description: 'Actor ID to update',
+            },
+            actorName: {
+              type: 'string',
+              description: 'Actor name to update (alternative to actorId)',
+            },
+            hp: {
+              type: 'number',
+              description: 'Set current HP to this absolute value',
+            },
+            tempHp: {
+              type: 'number',
+              description: 'Set temporary HP to this value',
+            },
+            maxHpOverride: {
+              type: 'number',
+              description: 'Override the maximum HP with this value',
+            },
+            delta: {
+              type: 'number',
+              description: 'Apply a relative change to current HP (positive = heal, negative = damage)',
+            },
+          },
+        },
+      },
+      {
+        name: 'give-item-to-actor',
+        description: 'Give an item from the compendium to an actor. Searches all item compendiums by name.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            actorId: {
+              type: 'string',
+              description: 'Actor ID to receive the item',
+            },
+            actorName: {
+              type: 'string',
+              description: 'Actor name to receive the item (alternative to actorId)',
+            },
+            itemName: {
+              type: 'string',
+              description: 'Name of the item to search for in compendiums (exact match)',
+            },
+            quantity: {
+              type: 'number',
+              description: 'Quantity to give (default: 1)',
+            },
+          },
+          required: ['itemName'],
+        },
+      },
+      {
         name: 'search-character-items',
         description: 'Search within a character\'s items, spells, actions, and effects. More token-efficient than get-character when you need specific items. Supports text search (name/description) and type filtering. Returns matching items with full details including targeting info for spells. Use this to find specific spells, equipment, feats, or abilities without loading the entire character.',
         inputSchema: {
@@ -388,6 +447,68 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to search character items', error);
       throw new Error(`Failed to search items for "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async handleUpdateActor(args: any): Promise<any> {
+    const schema = z.object({
+      actorId: z.string().optional(),
+      actorName: z.string().optional(),
+      hp: z.number().optional(),
+      tempHp: z.number().optional(),
+      maxHpOverride: z.number().optional(),
+      delta: z.number().optional(),
+    });
+
+    const params = schema.parse(args);
+
+    this.logger.info('Updating actor', { actorId: params.actorId, actorName: params.actorName });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.updateActor', {
+        actorId: params.actorId,
+        actorName: params.actorName,
+        hp: params.hp,
+        tempHp: params.tempHp,
+        maxHpOverride: params.maxHpOverride,
+        delta: params.delta,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to update actor', error);
+      throw new Error(
+        `Failed to update actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async handleGiveItemToActor(args: any): Promise<any> {
+    const schema = z.object({
+      actorId: z.string().optional(),
+      actorName: z.string().optional(),
+      itemName: z.string().min(1, 'Item name cannot be empty'),
+      quantity: z.number().optional(),
+    });
+
+    const params = schema.parse(args);
+
+    this.logger.info('Giving item to actor', { actorId: params.actorId, actorName: params.actorName, itemName: params.itemName });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.giveItemToActor', {
+        actorId: params.actorId,
+        actorName: params.actorName,
+        itemName: params.itemName,
+        quantity: params.quantity,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to give item to actor', error);
+      throw new Error(
+        `Failed to give item to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 

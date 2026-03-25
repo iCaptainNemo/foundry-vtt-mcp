@@ -59,7 +59,29 @@ export class DiceRollTools {
           },
           required: ['rollType', 'rollTarget', 'targetPlayer', 'isPublic', 'userConfirmedVisibility']
         }
-      }
+      },
+      {
+        name: 'roll-dice',
+        description: 'Roll dice as the GM using a standard dice formula and post the result to chat. Use for rolling NPC attacks, random tables, damage, or any GM-side roll.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            formula: {
+              type: 'string',
+              description: 'Dice formula to roll (e.g. "2d6+3", "1d20", "4d6kh3")',
+            },
+            flavor: {
+              type: 'string',
+              description: 'Optional flavor text to display with the roll',
+            },
+            whisperGM: {
+              type: 'boolean',
+              description: 'If true, whisper the roll result only to the GM instead of posting publicly',
+            },
+          },
+          required: ['formula'],
+        },
+      },
     ];
   }
 
@@ -105,6 +127,33 @@ export class DiceRollTools {
         return `Parameter error: ${messages.join(', ')}`;
       }
       throw error;
+    }
+  }
+
+  async handleRollDice(args: any): Promise<any> {
+    const schema = z.object({
+      formula: z.string().min(1, 'Formula cannot be empty'),
+      flavor: z.string().optional(),
+      whisperGM: z.boolean().optional(),
+    });
+
+    const params = schema.parse(args);
+
+    this.logger.info('Rolling dice', { formula: params.formula, flavor: params.flavor });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.rollDice', {
+        formula: params.formula,
+        flavor: params.flavor,
+        whisperGM: params.whisperGM,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to roll dice', error);
+      throw new Error(
+        `Failed to roll dice: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 }

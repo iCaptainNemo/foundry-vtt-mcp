@@ -41,6 +41,44 @@ export class SceneTools {
         },
       },
       {
+        name: 'play-playlist',
+        description: 'Start playing a Foundry VTT playlist by name or ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Name of the playlist to play',
+            },
+            id: {
+              type: 'string',
+              description: 'ID of the playlist to play (alternative to name)',
+            },
+          },
+        },
+      },
+      {
+        name: 'stop-playlist',
+        description: 'Stop a Foundry VTT playlist by name or ID, or stop all playlists',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Name of the playlist to stop',
+            },
+            id: {
+              type: 'string',
+              description: 'ID of the playlist to stop (alternative to name)',
+            },
+            stopAll: {
+              type: 'boolean',
+              description: 'If true, stop all currently playing playlists',
+            },
+          },
+        },
+      },
+      {
         name: 'get-world-info',
         description: 'Get basic information about the Foundry world and system',
         inputSchema: {
@@ -94,6 +132,58 @@ export class SceneTools {
     } catch (error) {
       this.logger.error('Failed to get world information', error);
       throw new Error(`Failed to get world information: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async handlePlayPlaylist(args: any): Promise<any> {
+    const schema = z.object({
+      name: z.string().optional(),
+      id: z.string().optional(),
+    });
+
+    const params = schema.parse(args);
+
+    this.logger.info('Playing playlist', { name: params.name, id: params.id });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.playPlaylist', {
+        name: params.name,
+        id: params.id,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to play playlist', error);
+      throw new Error(
+        `Failed to play playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async handleStopPlaylist(args: any): Promise<any> {
+    const schema = z.object({
+      name: z.string().optional(),
+      id: z.string().optional(),
+      stopAll: z.boolean().optional(),
+    });
+
+    const params = schema.parse(args);
+
+    this.logger.info('Stopping playlist', { name: params.name, id: params.id, stopAll: params.stopAll });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.stopPlaylist', {
+        name: params.name,
+        id: params.id,
+        stopAll: params.stopAll,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to stop playlist', error);
+      throw new Error(
+        `Failed to stop playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
