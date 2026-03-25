@@ -205,7 +205,7 @@ export class ModuleSettings {
         'webrtc': 'WebRTC (Internet)',
         'websocket': 'WebSocket (Local Only)'
       },
-      default: 'auto',
+      default: 'websocket',
       onChange: this.onConnectionChange.bind(this),
     });
 
