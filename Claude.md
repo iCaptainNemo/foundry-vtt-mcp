@@ -61,6 +61,23 @@ ssh ovh "sudo cp -r /tmp/foundry-mcp-dist/. /var/lib/pterodactyl/volumes/88cfb31
 - **Private channel**: Mike can message Claude directly in Claude Code chat, or via `/w Gamemaster [message]` whisper in Foundry chat. Claude sees all whispers server-side.
 - **Immersion first**: Mike hangs back on DM intervention unless needed. Let the session breathe.
 
+## SwipeVTT Chat Patch
+
+A small standalone Foundry module (`swipe-chat-patch`) was hand-built to fix SwipeVTT's mobile chat drawer. It lives only on the OVH server — not in this repo, no separate GitHub. Files are at:
+
+```
+/var/lib/pterodactyl/volumes/88cfb31f-.../data/Data/modules/swipe-chat-patch/
+  module.json
+  scripts/swipe-chat-patch.js
+  styles/swipe-chat-patch.css
+```
+
+What it does:
+- Makes the chat drawer full-screen and shows all messages as a scrollable list
+- Adds a fixed input bar at the bottom with a send button
+- Neutralizes SwipeVTT's card-swipe gesture (MutationObserver strips mobile-sliding/peek classes)
+- 18px input font for readability
+
 ## ComfyUI (Map Generation)
 
 ComfyUI needs to be running locally on the desktop for AI map generation. Backend expects it at `127.0.0.1:8188`. The "stopped" warning in Foundry is harmless when ComfyUI isn't running — all other tools still work.
