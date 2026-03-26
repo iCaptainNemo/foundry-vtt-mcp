@@ -1493,6 +1493,12 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'get-scene-screenshot':
+
+                  result = await sceneTools.handleGetSceneScreenshot(args);
+
+                  break;
+
                 case 'get-world-info':
 
                   result = await sceneTools.handleGetWorldInfo(args);
@@ -1905,11 +1911,19 @@ async function startBackend(): Promise<void> {
 
               }
 
-              const payload = {
+              // If the result contains embedded image content, return it as an MCP image block
+              let content: any[];
+              if (result?._imageContent) {
+                const { _imageContent, ...meta } = result;
+                content = [
+                  _imageContent,
+                  { type: 'text', text: JSON.stringify(meta) },
+                ];
+              } else {
+                content = [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result) }];
+              }
 
-                content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result) }],
-
-              };
+              const payload = { content };
 
               socket.write(JSON.stringify({ id: msg.id, result: payload }) + '\n');
 

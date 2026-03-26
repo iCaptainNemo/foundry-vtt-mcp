@@ -1,0 +1,130 @@
+/* ─── SwipeVTT Chat Patch ─── */
+
+/* 1. Make the drawer take the full screen height */
+body.swipe-vtt .mobile-chat-drawer .drawer-content {
+  max-height: 100dvh !important;
+  height: 100dvh !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}
+
+/* 2. Show ALL chat messages in a scrollable list (instead of one-at-a-time) */
+body.swipe-vtt .mobile-chat-drawer .chat-popout-wrapper .chat-message {
+  display: block !important;
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  z-index: auto !important;
+  max-height: none !important;
+  overflow-y: visible !important;
+  box-shadow: none !important;
+  margin: 0 12px 8px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: all !important;
+}
+
+/* 3. Make the chat scroll area actually scroll */
+body.swipe-vtt .mobile-chat-drawer .chat-popout-wrapper {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  flex: 1 1 auto !important;
+  /* leave room for the input bar at the bottom */
+  padding-bottom: 70px !important;
+}
+
+body.swipe-vtt .mobile-chat-drawer .chat-popout-wrapper .chat-scroll {
+  overflow: visible !important;
+  height: auto !important;
+}
+
+body.swipe-vtt .mobile-chat-drawer .chat-popout-wrapper .chat-log {
+  overflow: visible !important;
+  height: auto !important;
+  min-height: unset !important;
+}
+
+/* 4. Hide the old prev/next nav buttons (replaced by the input bar) */
+body.swipe-vtt .mobile-chat-drawer .chat-drawer-nav {
+  display: none !important;
+}
+
+/* 5. Kill card-swipe animation classes — neutralize any race before the JS observer fires */
+body.swipe-vtt .mobile-chat-drawer .chat-popout-wrapper .chat-message.mobile-sliding,
+body.swipe-vtt .mobile-chat-drawer .chat-popout-wrapper .chat-message.mobile-peek {
+  transform: none !important;
+  transition: none !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+}
+
+/* ─── Chat Input Bar ─── */
+
+#swipe-chat-input-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999999;
+  display: none;
+  background: var(--mobile-bg-solid, #1a1a2e);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 10px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+/* Show only when chat drawer is open */
+body.mobile-chat-open #swipe-chat-input-bar {
+  display: flex;
+}
+
+#swipe-chat-input-bar textarea {
+  flex: 1;
+  min-height: 42px;
+  max-height: 120px;
+  padding: 10px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--mobile-input-bg, rgba(0, 0, 0, 0.3));
+  color: var(--mobile-text-primary, #fff);
+  font-size: 18px;
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  overflow-y: auto;
+}
+
+#swipe-chat-input-bar textarea::placeholder {
+  color: var(--mobile-text-muted, #666);
+}
+
+#swipe-chat-input-bar button {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: var(--mobile-accent, #e6a540);
+  color: #000;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+#swipe-chat-input-bar button:active {
+  opacity: 0.7;
+}

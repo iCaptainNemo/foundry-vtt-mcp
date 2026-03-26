@@ -1,3 +1,72 @@
+# Foundry MCP — Mike's Setup
+
+## Git & GitHub
+
+- **Fork**: https://github.com/iCaptainNemo/foundry-vtt-mcp (Mike's fork — this is `origin`)
+- **Upstream**: https://github.com/adambdooley/foundry-vtt-mcp (`upstream` remote, for syncing)
+- **Commit footer**: Always include only this co-author line — no Happy credits:
+  ```
+  Co-Authored-By: Claude <noreply@anthropic.com>
+  ```
+
+## Infrastructure
+
+- **Foundry VTT**: `https://dnd.webinge.games` → OVH Docker (Pterodactyl, container `88cfb31f`)
+- **MCP Backend**: Runs on Windows desktop (`100.80.179.51` Tailscale IP)
+- **nginx on OVH**: Proxies `wss://dnd.webinge.games/foundry-mcp` → `ws://100.80.179.51:31415`
+- **Foundry module**: `foundry-mcp-bridge` installed at `/var/lib/pterodactyl/volumes/88cfb31f-c77f-4388-bb85-8667ce6046c7/data/Data/modules/foundry-mcp-bridge/`
+- **MCP config**: `.mcp.json` in this directory wires Claude Code to the backend
+
+## Starting the MCP Backend
+
+**At the start of every conversation, check if the backend is running. If not, start it.**
+
+```bash
+# Check if running:
+netstat -an | grep 31415
+# Should show: 0.0.0.0:31415  LISTENING
+# If nothing shows, start it:
+node packages/mcp-server/dist/backend.js
+```
+
+Ports used:
+- `31415` — WebSocket server (Foundry module connects here via nginx proxy)
+- `31416` — WebRTC signaling (fallback, not currently used)
+- `31414` — Internal control socket (Claude Code index.js ↔ backend)
+
+## Rebuilding After Changes
+
+```bash
+# Rebuild MCP server (backend tools)
+npm run build:server
+
+# Rebuild Foundry module (browser-side JS)
+npm run build:foundry
+
+# Deploy updated Foundry module to OVH
+scp -r packages/foundry-module/dist/. ovh:/tmp/foundry-mcp-dist/
+ssh ovh "sudo cp -r /tmp/foundry-mcp-dist/. /var/lib/pterodactyl/volumes/88cfb31f-c77f-4388-bb85-8667ce6046c7/data/Data/modules/foundry-mcp-bridge/dist/"
+# Then hard reload Foundry (Ctrl+Shift+R)
+```
+
+## Customizations vs Upstream
+
+- `packages/foundry-module/src/socket-bridge.ts`: Uses `wss://` when page is HTTPS (omits port, routes through nginx)
+- `packages/foundry-module/src/settings.ts`: Default connection type changed to `websocket`
+- `.mcp.json`: Claude Code MCP server config pointing to local backend
+
+## DM Playstyle
+
+- **Theater of the mind for terrain**: Players declare their actions ("I climb up the shaft", "I duck behind the barrel") and Claude narrates from there. Players describe positioning; Claude adjudicates and narrates. Don't block on visual terrain info you can't see.
+- **Private channel**: Mike can message Claude directly in Claude Code chat, or via `/w Gamemaster [message]` whisper in Foundry chat. Claude sees all whispers server-side.
+- **Immersion first**: Mike hangs back on DM intervention unless needed. Let the session breathe.
+
+## ComfyUI (Map Generation)
+
+ComfyUI needs to be running locally on the desktop for AI map generation. Backend expects it at `127.0.0.1:8188`. The "stopped" warning in Foundry is harmless when ComfyUI isn't running — all other tools still work.
+
+---
+
 # DSA5 MCP Foundry Fork
 
 ## Projekt-Übersicht

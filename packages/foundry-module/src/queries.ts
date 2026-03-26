@@ -85,6 +85,9 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.toggleTokenCondition`] = this.handleToggleTokenCondition.bind(this);
     CONFIG.queries[`${modulePrefix}.getAvailableConditions`] = this.handleGetAvailableConditions.bind(this);
 
+    // Scene screenshot
+    CONFIG.queries[`${modulePrefix}.getSceneScreenshot`] = this.handleGetSceneScreenshot.bind(this);
+
     // Map generation queries (hybrid architecture)
     CONFIG.queries[`${modulePrefix}.generate-map`] = this.handleGenerateMap.bind(this);
     CONFIG.queries[`${modulePrefix}.check-map-status`] = this.handleCheckMapStatus.bind(this);
@@ -353,6 +356,53 @@ export class QueryHandlers {
       return await this.dataAccess.getActiveScene();
     } catch (error) {
       throw new Error(`Failed to get active scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle scene screenshot request — captures the Pixi canvas at reduced resolution
+   */
+  private async handleGetSceneScreenshot(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+
+      const scale: number = data?.scale ?? 0.33;
+      const quality: number = data?.quality ?? 0.75;
+
+      const scene = canvas?.scene;
+      const renderer = canvas?.app?.renderer;
+
+      if (!renderer || !canvas?.app?.stage) {
+        return { success: false, error: 'Canvas not available' };
+      }
+
+      // Extract the full canvas to a temporary HTMLCanvasElement
+      const sourceCanvas: HTMLCanvasElement = renderer.extract.canvas(canvas.app.stage) as HTMLCanvasElement;
+
+      // Downscale into a new canvas
+      const destWidth = Math.floor(sourceCanvas.width * scale);
+      const destHeight = Math.floor(sourceCanvas.height * scale);
+      const dest = document.createElement('canvas');
+      dest.width = destWidth;
+      dest.height = destHeight;
+      const ctx = dest.getContext('2d');
+      if (!ctx) return { success: false, error: 'Could not get 2D context for resize' };
+      ctx.drawImage(sourceCanvas, 0, 0, destWidth, destHeight);
+
+      const imageData = dest.toDataURL('image/jpeg', quality);
+
+      return {
+        success: true,
+        imageData,
+        sceneName: scene?.name ?? 'Unknown',
+        dimensions: {
+          original: { width: sourceCanvas.width, height: sourceCanvas.height },
+          scaled: { width: destWidth, height: destHeight },
+        },
+      };
+    } catch (error) {
+      throw new Error(`Screenshot failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

@@ -86,6 +86,25 @@ export class SceneTools {
           properties: {},
         },
       },
+      {
+        name: 'get-scene-screenshot',
+        description: 'Capture a scaled-down screenshot of the current Foundry canvas for visual inspection of the map layout, terrain, and token positions',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            scale: {
+              type: 'number',
+              description: 'Scale factor for the screenshot (0.1–1.0, default 0.33 for ~1/3 resolution)',
+              default: 0.33,
+            },
+            quality: {
+              type: 'number',
+              description: 'JPEG quality (0.1–1.0, default 0.75)',
+              default: 0.75,
+            },
+          },
+        },
+      },
     ];
   }
 
@@ -183,6 +202,44 @@ export class SceneTools {
       this.logger.error('Failed to stop playlist', error);
       throw new Error(
         `Failed to stop playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async handleGetSceneScreenshot(args: any): Promise<any> {
+    const schema = z.object({
+      scale: z.number().min(0.1).max(1.0).default(0.33),
+      quality: z.number().min(0.1).max(1.0).default(0.75),
+    });
+
+    const { scale, quality } = schema.parse(args);
+
+    this.logger.info('Capturing scene screenshot', { scale, quality });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.getSceneScreenshot', { scale, quality });
+
+      if (!result?.imageData) {
+        throw new Error('No image data returned from Foundry');
+      }
+
+      // Strip the data URL prefix if present, keep only base64
+      const base64 = result.imageData.replace(/^data:image\/\w+;base64,/, '');
+
+      return {
+        _imageContent: {
+          type: 'image',
+          data: base64,
+          mimeType: 'image/jpeg',
+        },
+        sceneName: result.sceneName,
+        dimensions: result.dimensions,
+        capturedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to capture scene screenshot', error);
+      throw new Error(
+        `Failed to capture scene screenshot: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
