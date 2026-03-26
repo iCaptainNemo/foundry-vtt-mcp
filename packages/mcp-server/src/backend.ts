@@ -46,6 +46,8 @@ import { JournalTools } from './tools/journal.js';
 
 import { MusicTools } from './tools/music.js';
 
+import { PlayerCharacterTools } from './tools/player-character.js';
+
 import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
 
 const CONTROL_HOST = '127.0.0.1';
@@ -1102,6 +1104,8 @@ async function startBackend(): Promise<void> {
 
   const musicTools = new MusicTools({ foundryClient, logger });
 
+  const playerCharacterTools = new PlayerCharacterTools({ foundryClient, logger });
+
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
   let mapGenerationComfyUIClient: any = null;
@@ -1346,6 +1350,8 @@ async function startBackend(): Promise<void> {
     ...journalTools.getToolDefinitions(),
 
     ...musicTools.getToolDefinitions(),
+
+    ...playerCharacterTools.getToolDefinitions(),
 
   ];
 
@@ -1934,6 +1940,18 @@ async function startBackend(): Promise<void> {
                 case 'sync-music-index':
 
                   result = await musicTools.handleSyncMusicIndex(args);
+
+                  break;
+
+                case 'create-player-character':
+
+                  result = await playerCharacterTools.handleCreatePlayerCharacter(args);
+
+                  break;
+
+                case 'update-character-stats':
+
+                  result = await playerCharacterTools.handleUpdateCharacterStats(args);
 
                   break;
 

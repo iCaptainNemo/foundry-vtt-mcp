@@ -127,6 +127,8 @@ export class QueryHandlers {
 
     // Actor update queries
     CONFIG.queries[`${modulePrefix}.updateActor`] = this.handleUpdateActor.bind(this);
+    CONFIG.queries[`${modulePrefix}.createPlayerCharacter`] = this.handleCreatePlayerCharacter.bind(this);
+    CONFIG.queries[`${modulePrefix}.updateCharacterStats`] = this.handleUpdateCharacterStats.bind(this);
 
     // Inventory queries
     CONFIG.queries[`${modulePrefix}.giveItemToActor`] = this.handleGiveItemToActor.bind(this);
@@ -2360,6 +2362,219 @@ export class QueryHandlers {
       return { success: true, name };
     } catch (error) {
       throw new Error(`Failed to delete journal: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Create a new player character actor with class, race, background, and calculated HP
+   */
+  private async handleCreatePlayerCharacter(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+
+      this.dataAccess.validateFoundryState();
+
+      // Helper: search Item compendium packs for an item by name and optional type filter
+      const findItemInPacks = async (itemName: string, typeFilter?: string): Promise<any | null> => {
+        const lowerName = itemName.toLowerCase();
+        // Search DDB packs first, then others
+        const packs = [...game.packs].sort((a: any, b: any) => {
+          const aIsDDB = a.metadata?.id?.includes('ddb') || a.metadata?.label?.toLowerCase().includes('ddb') ? -1 : 1;
+          const bIsDDB = b.metadata?.id?.includes('ddb') || b.metadata?.label?.toLowerCase().includes('ddb') ? -1 : 1;
+          return aIsDDB - bIsDDB;
+        });
+
+        for (const pack of packs) {
+          if (pack.documentName !== 'Item') continue;
+          const index = await pack.getIndex();
+          const entry = index.find((e: any) => {
+            const nameMatch = e.name.toLowerCase() === lowerName;
+            if (!nameMatch) return false;
+            if (typeFilter && e.type && e.type !== typeFilter) return false;
+            return true;
+          });
+          if (entry) {
+            const doc = await pack.getDocument(entry._id);
+            return doc?.toObject() ?? null;
+          }
+        }
+        return null;
+      };
+
+      // Get or create a folder for organizing the character
+      let folderId: string | null = null;
+      try {
+        const existingFolder = game.folders?.find((f: any) => f.name === 'Premade Characters' && f.type === 'Actor');
+        if (existingFolder) {
+          folderId = existingFolder.id;
+        } else {
+          const folder = await Folder.create({
+            name: 'Premade Characters',
+            type: 'Actor',
+            description: 'Player characters created via Foundry MCP Bridge',
+            color: '#4a90e2',
+            sort: 0,
+            parent: null,
+          });
+          folderId = folder?.id ?? null;
+        }
+      } catch (folderErr) {
+        // Non-fatal — proceed without folder
+      }
+
+      // Create blank actor with abilities and currency
+      const actor: any = await Actor.create({
+        name: data.name,
+        type: 'character',
+        folder: folderId ?? null,
+        system: {
+          abilities: {
+            str: { value: data.abilities.str },
+            dex: { value: data.abilities.dex },
+            con: { value: data.abilities.con },
+            int: { value: data.abilities.int },
+            wis: { value: data.abilities.wis },
+            cha: { value: data.abilities.cha },
+          },
+          currency: { gp: data.gold ?? 0 },
+          details: {
+            biography: { value: data.biography ?? '' },
+          },
+        },
+      });
+
+      if (!actor) throw new Error('Failed to create actor');
+
+      // Add class item
+      const classItemData = await findItemInPacks(data.class, 'class');
+      if (classItemData) {
+        if (!classItemData.system) classItemData.system = {};
+        classItemData.system.levels = data.level;
+        await actor.createEmbeddedDocuments('Item', [classItemData]);
+      }
+
+      // Add race item
+      const raceItemData = await findItemInPacks(data.race, 'race');
+      if (raceItemData) {
+        await actor.createEmbeddedDocuments('Item', [raceItemData]);
+      }
+
+      // Add background item (if provided)
+      if (data.background) {
+        const bgItemData = await findItemInPacks(data.background, 'background');
+        if (bgItemData) {
+          await actor.createEmbeddedDocuments('Item', [bgItemData]);
+        }
+      }
+
+      // Calculate HP based on class hit die
+      const hitDieMap: Record<string, number> = {
+        barbarian: 12,
+        fighter: 10,
+        paladin: 10,
+        ranger: 10,
+        bard: 8,
+        cleric: 8,
+        druid: 8,
+        monk: 8,
+        rogue: 8,
+        warlock: 8,
+        sorcerer: 6,
+        wizard: 6,
+      };
+      const hitDie = hitDieMap[data.class.toLowerCase()] ?? 8;
+      const conMod = Math.floor((data.abilities.con - 10) / 2);
+      const level1HP = Math.max(1, hitDie + conMod);
+      const additionalHP = (Math.ceil(hitDie / 2) + 1 + conMod) * (data.level - 1);
+      const totalHP = Math.max(1, level1HP + additionalHP);
+
+      await actor.update({
+        'system.attributes.hp.value': totalHP,
+        'system.attributes.hp.max': totalHP,
+      });
+
+      return {
+        success: true,
+        actorId: actor.id,
+        name: actor.name,
+        hp: totalHP,
+        level: data.level,
+      };
+    } catch (error) {
+      throw new Error(`Failed to create player character: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Update ability scores, level, HP, gold, name, or biography on a character actor
+   */
+  private async handleUpdateCharacterStats(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+
+      this.dataAccess.validateFoundryState();
+
+      const actor: any = data.actorId
+        ? game.actors?.get(data.actorId)
+        : game.actors?.getName(data.actorName);
+      if (!actor) throw new Error('Actor not found');
+
+      const updates: any = {};
+
+      // Ability scores
+      if (data.abilities) {
+        for (const [key, value] of Object.entries(data.abilities)) {
+          if (value !== undefined && value !== null) {
+            updates[`system.abilities.${key}.value`] = value;
+          }
+        }
+      }
+
+      // Gold
+      if (data.gold !== undefined) {
+        updates['system.currency.gp'] = data.gold;
+      }
+
+      // HP
+      if (data.hp?.max !== undefined) {
+        updates['system.attributes.hp.max'] = data.hp.max;
+      }
+      if (data.hp?.current !== undefined) {
+        updates['system.attributes.hp.value'] = data.hp.current;
+      }
+
+      // Name
+      if (data.name) {
+        updates['name'] = data.name;
+      }
+
+      // Biography
+      if (data.biography) {
+        updates['system.details.biography.value'] = data.biography;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await actor.update(updates);
+      }
+
+      // Level update — update the class item
+      if (data.level !== undefined) {
+        const classItem = actor.items.find((i: any) => i.type === 'class');
+        if (classItem) {
+          await classItem.update({ 'system.levels': data.level });
+        }
+      }
+
+      return {
+        success: true,
+        actorId: actor.id,
+        name: actor.name,
+        updated: Object.keys(updates),
+      };
+    } catch (error) {
+      throw new Error(`Failed to update character stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
