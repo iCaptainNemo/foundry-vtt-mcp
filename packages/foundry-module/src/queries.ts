@@ -2423,11 +2423,35 @@ export class QueryHandlers {
         // Non-fatal — proceed without folder
       }
 
+      // Resolve portrait/token images — fall back to class-based defaults from the dnd5e system
+      const classTokenMap: Record<string, string> = {
+        barbarian: 'systems/dnd5e/tokens/heroes/Barbarian.webp',
+        bard: 'systems/dnd5e/tokens/heroes/Bard.webp',
+        cleric: 'systems/dnd5e/tokens/heroes/Cleric.webp',
+        druid: 'systems/dnd5e/tokens/heroes/Druid.webp',
+        fighter: 'systems/dnd5e/tokens/heroes/Fighter.webp',
+        monk: 'systems/dnd5e/tokens/heroes/Monk.webp',
+        paladin: 'systems/dnd5e/tokens/heroes/Paladin.webp',
+        ranger: 'systems/dnd5e/tokens/heroes/Ranger.webp',
+        rogue: 'systems/dnd5e/tokens/heroes/Rogue.webp',
+        sorcerer: 'systems/dnd5e/tokens/heroes/Sorcerer.webp',
+        warlock: 'systems/dnd5e/tokens/heroes/Warlock.webp',
+        wizard: 'systems/dnd5e/tokens/heroes/Wizard.webp',
+      };
+      const defaultImg = classTokenMap[data.class.toLowerCase()] ?? 'icons/svg/mystery-man.svg';
+      const portraitImg = data.portrait ?? defaultImg;
+      const tokenImg = data.token ?? portraitImg;
+
       // Create blank actor with abilities and currency
       const actor: any = await Actor.create({
         name: data.name,
         type: 'character',
+        img: portraitImg,
         folder: folderId ?? null,
+        prototypeToken: {
+          texture: { src: tokenImg },
+          name: data.name,
+        },
         system: {
           abilities: {
             str: { value: data.abilities.str },
@@ -2553,6 +2577,16 @@ export class QueryHandlers {
       // Biography
       if (data.biography) {
         updates['system.details.biography.value'] = data.biography;
+      }
+
+      // Portrait (actor img)
+      if (data.portrait) {
+        updates['img'] = data.portrait;
+      }
+
+      // Token image
+      if (data.token) {
+        updates['prototypeToken.texture.src'] = data.token;
       }
 
       if (Object.keys(updates).length > 0) {

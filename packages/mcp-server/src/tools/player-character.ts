@@ -69,13 +69,21 @@ export class PlayerCharacterTools {
               type: 'string',
               description: 'Character biography / backstory',
             },
+            portrait: {
+              type: 'string',
+              description: 'Portrait image path (e.g. "systems/dnd5e/tokens/heroes/Fighter.webp"). Auto-assigned by class if omitted.',
+            },
+            token: {
+              type: 'string',
+              description: 'Token image path. Defaults to portrait if omitted.',
+            },
           },
           required: ['name', 'race', 'class', 'abilities'],
         },
       },
       {
         name: 'update-character-stats',
-        description: 'Update ability scores, level, HP, gold, name, or biography on an existing D&D 5e character actor',
+        description: 'Update ability scores, level, HP, gold, name, biography, or portrait/token image on an existing D&D 5e character actor',
         inputSchema: {
           type: 'object',
           properties: {
@@ -123,6 +131,14 @@ export class PlayerCharacterTools {
               type: 'string',
               description: 'New biography text',
             },
+            portrait: {
+              type: 'string',
+              description: 'Portrait image path (sets the actor img field)',
+            },
+            token: {
+              type: 'string',
+              description: 'Token image path (sets prototypeToken.texture.src)',
+            },
           },
         },
       },
@@ -146,6 +162,8 @@ export class PlayerCharacterTools {
       background: z.string().optional(),
       gold: z.number().default(0),
       biography: z.string().optional(),
+      portrait: z.string().optional(),
+      token: z.string().optional(),
     });
 
     const params = schema.parse(args);
@@ -181,6 +199,8 @@ export class PlayerCharacterTools {
       }).optional(),
       name: z.string().optional(),
       biography: z.string().optional(),
+      portrait: z.string().optional(),
+      token: z.string().optional(),
     });
 
     const params = schema.parse(args);
