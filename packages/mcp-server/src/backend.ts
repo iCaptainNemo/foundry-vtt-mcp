@@ -1769,6 +1769,12 @@ async function startBackend(): Promise<void> {
 
                 // Playlist
 
+                case 'list-playlists':
+
+                  result = await sceneTools.handleListPlaylists(args);
+
+                  break;
+
                 case 'play-playlist':
 
                   result = await sceneTools.handlePlayPlaylist(args);

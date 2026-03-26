@@ -132,6 +132,7 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.giveItemToActor`] = this.handleGiveItemToActor.bind(this);
 
     // Playlist queries
+    CONFIG.queries[`${modulePrefix}.listPlaylists`] = this.handleListPlaylists.bind(this);
     CONFIG.queries[`${modulePrefix}.playPlaylist`] = this.handlePlayPlaylist.bind(this);
     CONFIG.queries[`${modulePrefix}.stopPlaylist`] = this.handleStopPlaylist.bind(this);
 
@@ -1885,6 +1886,41 @@ export class QueryHandlers {
       return { success: true, itemId: created[0]?.id, itemName: created[0]?.name };
     } catch (error) {
       throw new Error(`Failed to give item to actor: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * List all playlists and their tracks
+   */
+  private async handleListPlaylists(_data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      const playlists = (game as any).playlists?.contents ?? [];
+      return {
+        success: true,
+        playlists: playlists.map((pl: any) => ({
+          id: pl.id,
+          name: pl.name,
+          playing: pl.playing ?? false,
+          mode: pl.mode, // 0=sequential, 1=shuffle, 2=simultaneous
+          tracks: (pl.sounds?.contents ?? []).map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            playing: s.playing ?? false,
+            path: s.path ?? s.src ?? '',
+            description: s.description ?? '',
+            volume: s.volume ?? 1.0,
+          })),
+        })),
+      };
+    } catch (error) {
+      throw new Error(`Failed to list playlists: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

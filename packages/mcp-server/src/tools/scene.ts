@@ -41,6 +41,14 @@ export class SceneTools {
         },
       },
       {
+        name: 'list-playlists',
+        description: 'List all Foundry VTT playlists and their tracks, including currently playing status and track names for music selection',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
         name: 'play-playlist',
         description: 'Start playing a Foundry VTT playlist by name or ID',
         inputSchema: {
@@ -165,6 +173,17 @@ export class SceneTools {
     } catch (error) {
       this.logger.error('Failed to get world information', error);
       throw new Error(`Failed to get world information: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async handleListPlaylists(_args: any): Promise<any> {
+    this.logger.info('Listing playlists');
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.listPlaylists');
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to list playlists', error);
+      throw new Error(`Failed to list playlists: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
