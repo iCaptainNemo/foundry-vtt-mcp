@@ -44,6 +44,8 @@ import { ActiveEffectsTools } from './tools/effects.js';
 
 import { JournalTools } from './tools/journal.js';
 
+import { MusicTools } from './tools/music.js';
+
 import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
 
 const CONTROL_HOST = '127.0.0.1';
@@ -1098,6 +1100,8 @@ async function startBackend(): Promise<void> {
 
   const journalTools = new JournalTools({ foundryClient, logger });
 
+  const musicTools = new MusicTools({ foundryClient, logger });
+
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
   let mapGenerationComfyUIClient: any = null;
@@ -1340,6 +1344,8 @@ async function startBackend(): Promise<void> {
     ...activeEffectsTools.getToolDefinitions(),
 
     ...journalTools.getToolDefinitions(),
+
+    ...musicTools.getToolDefinitions(),
 
   ];
 
@@ -1914,6 +1920,20 @@ async function startBackend(): Promise<void> {
                 case 'update-actor-item':
 
                   result = await characterTools.handleUpdateActorItem(args);
+
+                  break;
+
+                // Music index tools
+
+                case 'suggest-music':
+
+                  result = await musicTools.handleSuggestMusic(args);
+
+                  break;
+
+                case 'sync-music-index':
+
+                  result = await musicTools.handleSyncMusicIndex(args);
 
                   break;
 
