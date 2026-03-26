@@ -85,8 +85,9 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.toggleTokenCondition`] = this.handleToggleTokenCondition.bind(this);
     CONFIG.queries[`${modulePrefix}.getAvailableConditions`] = this.handleGetAvailableConditions.bind(this);
 
-    // Scene screenshot
+    // Scene screenshot and background
     CONFIG.queries[`${modulePrefix}.getSceneScreenshot`] = this.handleGetSceneScreenshot.bind(this);
+    CONFIG.queries[`${modulePrefix}.getSceneBackground`] = this.handleGetSceneBackground.bind(this);
 
     // Map generation queries (hybrid architecture)
     CONFIG.queries[`${modulePrefix}.generate-map`] = this.handleGenerateMap.bind(this);
@@ -403,6 +404,61 @@ export class QueryHandlers {
       };
     } catch (error) {
       throw new Error(`Screenshot failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle scene background image request — loads the background image in the browser,
+   * resizes it using a canvas element, and returns base64 JPEG
+   */
+  private async handleGetSceneBackground(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+
+      const maxWidth: number = data?.maxWidth ?? 1280;
+      const scene = canvas?.scene;
+      const bgSrc: string | undefined = (scene as any)?.background?.src;
+
+      if (!bgSrc) {
+        return { success: false, error: 'Current scene has no background image' };
+      }
+
+      // Load the image via the browser
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.crossOrigin = 'anonymous';
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error(`Failed to load image: ${bgSrc}`));
+        el.src = bgSrc;
+      });
+
+      // Resize proportionally
+      const scale = Math.min(1, maxWidth / img.naturalWidth);
+      const destWidth = Math.floor(img.naturalWidth * scale);
+      const destHeight = Math.floor(img.naturalHeight * scale);
+
+      const dest = document.createElement('canvas');
+      dest.width = destWidth;
+      dest.height = destHeight;
+      const ctx = dest.getContext('2d');
+      if (!ctx) return { success: false, error: 'Could not get 2D context' };
+      ctx.drawImage(img, 0, 0, destWidth, destHeight);
+
+      const imageData = dest.toDataURL('image/jpeg', 0.8);
+
+      return {
+        success: true,
+        imageData,
+        sceneName: scene?.name ?? 'Unknown',
+        backgroundPath: bgSrc,
+        dimensions: {
+          original: { width: img.naturalWidth, height: img.naturalHeight },
+          scaled: { width: destWidth, height: destHeight },
+        },
+      };
+    } catch (error) {
+      throw new Error(`Background fetch failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

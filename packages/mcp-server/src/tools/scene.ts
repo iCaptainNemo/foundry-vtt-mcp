@@ -87,6 +87,20 @@ export class SceneTools {
         },
       },
       {
+        name: 'get-scene-background',
+        description: 'Fetch the current scene\'s background map image at reduced resolution — full map layout with no tokens or fog of war, useful for pre-session prep and terrain review',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            maxWidth: {
+              type: 'number',
+              description: 'Max width to resize the image to in pixels (default 1280)',
+              default: 1280,
+            },
+          },
+        },
+      },
+      {
         name: 'get-scene-screenshot',
         description: 'Capture a scaled-down screenshot of the current Foundry canvas for visual inspection of the map layout, terrain, and token positions',
         inputSchema: {
@@ -202,6 +216,37 @@ export class SceneTools {
       this.logger.error('Failed to stop playlist', error);
       throw new Error(
         `Failed to stop playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async handleGetSceneBackground(args: any): Promise<any> {
+    const schema = z.object({
+      maxWidth: z.number().default(1280),
+    });
+    const { maxWidth } = schema.parse(args);
+
+    this.logger.info('Fetching scene background image', { maxWidth });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.getSceneBackground', { maxWidth });
+
+      if (!result?.imageData) {
+        throw new Error(result?.error || 'No image data returned');
+      }
+
+      const base64 = result.imageData.replace(/^data:image\/\w+;base64,/, '');
+
+      return {
+        _imageContent: { type: 'image', data: base64, mimeType: 'image/jpeg' },
+        sceneName: result.sceneName,
+        backgroundPath: result.backgroundPath,
+        dimensions: result.dimensions,
+      };
+    } catch (error) {
+      this.logger.error('Failed to fetch scene background', error);
+      throw new Error(
+        `Failed to fetch scene background: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }

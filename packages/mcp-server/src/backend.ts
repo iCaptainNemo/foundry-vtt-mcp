@@ -1493,6 +1493,12 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'get-scene-background':
+
+                  result = await sceneTools.handleGetSceneBackground(args);
+
+                  break;
+
                 case 'get-scene-screenshot':
 
                   result = await sceneTools.handleGetSceneScreenshot(args);
