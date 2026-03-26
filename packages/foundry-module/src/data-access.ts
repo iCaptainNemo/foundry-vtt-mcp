@@ -138,6 +138,17 @@ interface PersistentEnhancedIndex {
   creatures: EnhancedCreatureIndex[];
 }
 
+interface SceneSound {
+  id: string;
+  path: string;
+  x: number;
+  y: number;
+  radius: number;
+  volume: number;
+  repeat: boolean;
+  hidden: boolean;
+}
+
 interface SceneInfo {
   id: string;
   name: string;
@@ -151,7 +162,7 @@ interface SceneInfo {
   tokens: SceneToken[];
   walls: number;
   lights: number;
-  sounds: number;
+  sounds: SceneSound[];
   notes: SceneNote[];
 }
 
@@ -2843,7 +2854,16 @@ export class FoundryDataAccess {
       })),
       walls: scene.walls.size,
       lights: scene.lights.size,
-      sounds: scene.sounds.size,
+      sounds: (scene.sounds.contents ?? []).map((s: any) => ({
+        id: s.id,
+        path: s.path ?? s.src ?? '',
+        x: s.x ?? 0,
+        y: s.y ?? 0,
+        radius: s.radius ?? 0,
+        volume: s.volume ?? 1.0,
+        repeat: s.repeat ?? false,
+        hidden: s.hidden ?? false,
+      })),
       notes: scene.notes.map((note: any) => ({
         id: note.id,
         text: note.text || '',
